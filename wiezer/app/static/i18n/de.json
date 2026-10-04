@@ -20,6 +20,9 @@
   "action.retry": "Erneut versuchen",
   "action.increase": "Ziffer erhöhen",
   "action.decrease": "Ziffer verringern",
+  "action.move": "Verschieben",
+  "action.undo": "Rückgängig",
+  "action.drag": "In eine andere Schublade ziehen",
 
   "list.empty_drawer": "Leer",
   "list.no_results": "Nichts gefunden",
@@ -49,7 +52,6 @@
 
   "sheet.add_title": "Etwas einfrieren",
   "sheet.edit_title": "Eintrag bearbeiten",
-  "sheet.take_title": "Entnehmen",
 
   "item.location": "Schublade {drawer}",
   "item.location_group": "{group} · Schublade {drawer}",
@@ -65,6 +67,9 @@
   "snack.deleted": "Gelöscht",
   "snack.copied": "Etikettentext kopiert",
   "snack.item_gone": "Dieser Eintrag wurde inzwischen entfernt",
+  "snack.moved": "Verschoben nach {location}",
+  "snack.moved_merged": "Zum vorhandenen Eintrag in {location} hinzugefügt",
+  "snack.undone": "Rückgängig gemacht",
 
   "copy.manual_title": "Etikettentext kopieren",
   "copy.manual_hint": "Automatisches Kopieren hat nicht funktioniert. Text gedrückt halten, um ihn zu kopieren.",
@@ -80,6 +85,7 @@
   "error.last_drawer": "Mindestens eine Schublade wird benötigt",
   "error.last_unit": "Mindestens eine Einheit wird benötigt",
   "error.server": "Etwas ist schiefgelaufen",
+  "error.undo_expired": "Rückgängig nicht mehr möglich – der Eintrag wurde inzwischen geändert",
 
   "settings.title": "Einstellungen",
   "settings.general": "Allgemein",
@@ -113,6 +119,7 @@
   "option.system": "System",
   "option.light": "Hell",
   "option.dark": "Dunkel",
+
   "lang.de": "Deutsch",
   "lang.en": "English",
 
@@ -125,5 +132,8 @@
   "unit.slice.one": "Scheibe",
   "unit.slice.other": "Scheiben",
   "unit.package.one": "Packung",
-  "unit.package.other": "Packungen"
+  "unit.package.other": "Packungen",
+
+  "move.where": "{amount} verschieben nach:",
+  "move.whole": "Der ganze Eintrag wird verschoben"
 }

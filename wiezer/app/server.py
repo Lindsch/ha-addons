@@ -13,12 +13,14 @@ import datetime
 import json
 import os
 import re
+import secrets
 import sqlite3
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlparse
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 DATA_DIR = os.environ.get("WIEZER_DATA", "/data")
 DB_PATH = os.path.join(DATA_DIR, "wiezer.db")
@@ -33,6 +35,8 @@ MAX_AMOUNT = 10_000_000  # 1,000,000.0 in tenths
 MAX_NAME = 100
 MAX_NOTE = 500
 MAX_BODY = 64 * 1024
+UNDO_SECONDS = 120
+ITEM_COLUMNS = ("name", "drawer_id", "unit_id", "amount", "added", "note", "created_by", "created_at", "updated_at")
 
 DEFAULT_DRAWERS = ["1", "2", "3", "4", "5", "6", "7"]
 # builtin key, step (tenths), decimals allowed
@@ -83,6 +87,7 @@ class Store:
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA foreign_keys = ON")
         self.lock = threading.Lock()
+        self.undo = {}  # token -> {"expires", "before", "after"}; kept in memory only
         with self.lock:
             self._migrate()
 
@@ -321,6 +326,108 @@ class Store:
         if self.db.execute("DELETE FROM items WHERE id = ?", (item_id,)).rowcount == 0:
             raise ApiError("not_found", 404)
 
+    def _row(self, item_id):
+        row = self.db.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+        return dict(row) if row else None
+
+    def _prune_undo(self):
+        now = time.time()
+        for token in [t for t, rec in self.undo.items() if rec["expires"] < now]:
+            del self.undo[token]
+
+    def move_item(self, item_id, body):
+        """Move all or part of an entry to another drawer.
+
+        A part becomes its own entry. If the target drawer already has an entry with
+        the same name, unit and freezing date, the amount is added to it instead.
+        Returns an undo token valid for UNDO_SECONDS.
+        """
+        src = self._row(item_id)
+        if not src:
+            raise ApiError("not_found", 404)
+        drawer_id = as_int(body.get("drawer_id"))
+        if drawer_id == src["drawer_id"] or not self._exists("drawers", drawer_id):
+            raise ApiError("invalid")
+        amount = as_int(body.get("amount", src["amount"]))
+        if amount <= 0:
+            raise ApiError("invalid")
+        amount = min(amount, src["amount"])
+        whole = amount == src["amount"]
+
+        key = catalog_key(src["name"])
+        target = None
+        for row in self.db.execute(
+            "SELECT * FROM items WHERE drawer_id = ? AND unit_id = ? AND added = ? AND id != ? ORDER BY id",
+            (drawer_id, src["unit_id"], src["added"], item_id),
+        ):
+            if catalog_key(row["name"]) == key:
+                target = dict(row)
+                break
+
+        before = {item_id: src}
+        stamp = now_iso()
+        if target:
+            before[target["id"]] = target
+            self.db.execute(
+                "UPDATE items SET amount = amount + ?, updated_at = ? WHERE id = ?", (amount, stamp, target["id"])
+            )
+            if whole:
+                self.db.execute("DELETE FROM items WHERE id = ?", (item_id,))
+            else:
+                self.db.execute(
+                    "UPDATE items SET amount = amount - ?, updated_at = ? WHERE id = ?", (amount, stamp, item_id)
+                )
+            moved_id = target["id"]
+        elif whole:
+            self.db.execute("UPDATE items SET drawer_id = ?, updated_at = ? WHERE id = ?", (drawer_id, stamp, item_id))
+            moved_id = item_id
+        else:
+            self.db.execute(
+                "UPDATE items SET amount = amount - ?, updated_at = ? WHERE id = ?", (amount, stamp, item_id)
+            )
+            cur = self.db.execute(
+                "INSERT INTO items (name, drawer_id, unit_id, amount, added, note, created_by, created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (src["name"], drawer_id, src["unit_id"], amount, src["added"], src["note"], src["created_by"],
+                 stamp, stamp),
+            )
+            moved_id = cur.lastrowid
+            before[moved_id] = None  # did not exist before: undo deletes it
+
+        self._prune_undo()
+        token = secrets.token_hex(12)
+        self.undo[token] = {
+            "expires": time.time() + UNDO_SECONDS,
+            "before": before,
+            "after": {i: self._row(i) for i in before},
+        }
+        return {"moved_id": moved_id, "merged": bool(target), "undo": token}
+
+    def undo_move(self, body):
+        token = body.get("token")
+        self._prune_undo()
+        record = self.undo.pop(token, None) if isinstance(token, str) else None
+        if not record:
+            raise ApiError("undo_expired", 409)
+        # Only undo if nobody changed the affected entries in the meantime
+        for item_id, expected in record["after"].items():
+            if self._row(item_id) != expected:
+                raise ApiError("undo_expired", 409)
+        for item_id, snapshot in record["before"].items():
+            if snapshot is None:
+                self.db.execute("DELETE FROM items WHERE id = ?", (item_id,))
+            elif self._row(item_id):
+                cols = ", ".join(f"{c} = ?" for c in ITEM_COLUMNS)
+                self.db.execute(
+                    f"UPDATE items SET {cols} WHERE id = ?", (*(snapshot[c] for c in ITEM_COLUMNS), item_id)
+                )
+            else:
+                cols = ", ".join(("id",) + ITEM_COLUMNS)
+                marks = ", ".join("?" * (len(ITEM_COLUMNS) + 1))
+                self.db.execute(
+                    f"INSERT INTO items ({cols}) VALUES ({marks})", (item_id, *(snapshot[c] for c in ITEM_COLUMNS))
+                )
+
     def add_group(self, body):
         name = clean_text(body.get("name"), MAX_NAME, required=True)
         self.db.execute("INSERT INTO groups (name, position) VALUES (?, ?)", (name, self._next_pos("groups")))
@@ -456,6 +563,8 @@ ROUTES = [
     ("PATCH", r"/api/items/(\d+)", "patch_item"),
     ("DELETE", r"/api/items/(\d+)", "delete_item"),
     ("POST", r"/api/items/(\d+)/take", "take_item"),
+    ("POST", r"/api/items/(\d+)/move", "move_item"),
+    ("POST", r"/api/items/undo", "undo_move"),
     ("POST", r"/api/(groups|drawers|units)", "post_entity"),
     ("PATCH", r"/api/(groups|drawers|units)/(\d+)", "patch_entity"),
     ("DELETE", r"/api/(groups|drawers|units)/(\d+)", "delete_entity"),
@@ -597,6 +706,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def h_delete_item(self, user, body, item_id):
         STORE.delete_item(int(item_id))
+
+    def h_move_item(self, user, body, item_id):
+        return STORE.move_item(int(item_id), body)
+
+    def h_undo_move(self, user, body):
+        STORE.undo_move(body)
 
     def h_take_item(self, user, body, item_id):
         return {"removed": STORE.take_item(int(item_id), body)}

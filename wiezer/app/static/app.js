@@ -5,7 +5,7 @@
 
   const API = 'api/';
   const POLL_MS = 4000;
-  const ERROR_CODES = ['invalid', 'not_found', 'drawer_not_empty', 'unit_in_use', 'last_drawer', 'last_unit', 'server'];
+  const ERROR_CODES = ['invalid', 'not_found', 'drawer_not_empty', 'unit_in_use', 'last_drawer', 'last_unit', 'undo_expired', 'server'];
 
   const S = {
     strings: { en: {}, de: {} },
@@ -21,6 +21,8 @@
     changelog: null,
     overlays: [],
     snackTimer: null,
+    dragging: false,
+    pendingState: null,
   };
 
   // ------------------------------------------------------------------ small helpers
@@ -56,6 +58,8 @@
     down: '<path d="M6 9l6 6 6-6"/>',
     check: '<path d="M5 12l5 5 9-10"/>',
     chevron: '<path d="M9 6l6 6-6 6"/>',
+    grip: '<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke-width="3.2"/>',
+    move: '<path d="M4 12h11M11 7l5 5-5 5"/><path d="M20 5v14"/>',
     keyboard: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/>',
     drawer: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 12h4"/>',
   };
@@ -203,6 +207,7 @@
   }
 
   function applyState(data) {
+    if (S.dragging) { S.pendingState = data; return; } // don't redraw under the user's finger
     const prev = S.state;
     S.state = data;
     S.units = new Map(data.units.map((u) => [u.id, u]));
@@ -365,16 +370,17 @@
   }
 
   // Drawer picker: always chips (agreed exception), one row per group
-  function drawerChips(selected, onSelect) {
+  function drawerChips(selected, onSelect, exclude = null) {
     const wrap = h('div', {});
     const draw = () => {
       wrap.replaceChildren();
-      const ungrouped = S.state.drawers.filter((d) => !d.group_id || !S.groups.has(d.group_id));
+      const all = S.state.drawers.filter((d) => d.id !== exclude);
+      const ungrouped = all.filter((d) => !d.group_id || !S.groups.has(d.group_id));
       const row = (drawers) => choice(drawers.map((d) => ({ value: d.id, label: d.name })), selected,
         (v) => { selected = v; onSelect(v); draw(); }, { forceChips: true, label: t('field.drawer') });
       if (ungrouped.length) wrap.append(row(ungrouped));
       for (const group of S.state.groups) {
-        const drawers = S.state.drawers.filter((d) => d.group_id === group.id);
+        const drawers = all.filter((d) => d.group_id === group.id);
         if (!drawers.length) continue;
         wrap.append(h('div', { class: 'chip-group-label body-medium muted' }, group.name), row(drawers));
       }
@@ -726,7 +732,99 @@
     } catch (e) { /* shown */ }
   }
 
-  // ------------------------------------------------------------------ entry sheet (take out, copy, edit)
+  // ------------------------------------------------------------------ moving between drawers
+
+  async function moveItem(item, drawerId, amount) {
+    const result = await api('POST', `items/${item.id}/move`, { drawer_id: drawerId, amount });
+    const location = locationText({ drawer_id: drawerId });
+    snack(t(result.merged ? 'snack.moved_merged' : 'snack.moved', { location }), {
+      label: t('action.undo'),
+      run: async () => {
+        try {
+          await api('POST', 'items/undo', { token: result.undo });
+          snack(t('snack.undone'));
+        } catch (e) { /* shown */ }
+      },
+    });
+    return result;
+  }
+
+  // Drag an entry by its grip handle onto another drawer card (pointer events: touch, pen and mouse)
+  function startDrag(e, item) {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    const handle = e.currentTarget;
+    const row = handle.closest('.item');
+    const rect = row.getBoundingClientRect();
+    const ghost = row.cloneNode(true);
+    ghost.classList.add('drag-ghost');
+    Object.assign(ghost.style, { width: `${rect.width}px`, left: `${rect.left}px`, top: `${rect.top}px` });
+    document.body.append(ghost);
+    row.classList.add('dragging');
+    document.body.classList.add('is-dragging');
+    try { handle.setPointerCapture(e.pointerId); } catch (err) { /* not supported */ }
+    try { if (navigator.vibrate) navigator.vibrate(10); } catch (err) { /* not allowed */ }
+    S.dragging = true;
+    const offsetY = e.clientY - rect.top;
+    let x = e.clientX;
+    let y = e.clientY;
+    let target = null;
+    let frame = null;
+
+    const findTarget = () => {
+      const el = document.elementFromPoint(x, y);
+      const card = el ? el.closest('.drawer[data-drawer]') : null;
+      const next = card && Number(card.dataset.drawer) !== item.drawer_id ? card : null;
+      if (next !== target) {
+        if (target) target.classList.remove('drop-target');
+        target = next;
+        if (target) target.classList.add('drop-target');
+      }
+    };
+    // Scroll the list while the finger is near the top or bottom edge
+    const autoScroll = () => {
+      const edge = 80;
+      let dy = 0;
+      if (y < edge) dy = -Math.ceil((edge - y) / 5);
+      else if (y > window.innerHeight - edge) dy = Math.ceil((y - (window.innerHeight - edge)) / 5);
+      if (dy) { window.scrollBy(0, dy); findTarget(); }
+      frame = requestAnimationFrame(autoScroll);
+    };
+    frame = requestAnimationFrame(autoScroll);
+
+    const onMove = (ev) => {
+      x = ev.clientX;
+      y = ev.clientY;
+      ghost.style.top = `${y - offsetY}px`;
+      findTarget();
+    };
+    const finish = async (cancelled) => {
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      handle.removeEventListener('pointercancel', onCancel);
+      cancelAnimationFrame(frame);
+      ghost.remove();
+      row.classList.remove('dragging');
+      document.body.classList.remove('is-dragging');
+      const dest = !cancelled && target ? Number(target.dataset.drawer) : null;
+      if (target) target.classList.remove('drop-target');
+      S.dragging = false;
+      const pending = S.pendingState;
+      S.pendingState = null;
+      if (dest) {
+        try { await moveItem(item, dest, item.amount); } catch (err) { if (pending) applyState(pending); }
+      } else if (pending) {
+        applyState(pending);
+      }
+    };
+    const onUp = () => finish(false);
+    const onCancel = () => finish(true);
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+    handle.addEventListener('pointercancel', onCancel);
+  }
+
+  // ------------------------------------------------------------------ entry sheet (take out, move, copy, edit)
 
   function openItem(id) {
     openOverlay((o) => {
@@ -738,16 +836,39 @@
         const start = Math.min(unit.step, item.amount);
         const status = h('div', { class: 'take-status body-medium muted' });
         const takeBtn = h('button', { class: 'btn filled' }, icon('remove'), t('action.take'));
+        const canMove = S.state.drawers.length > 1;
+        const moveBtn = h('button', { class: 'btn tonal' }, icon('move'), t('action.move'));
+        const moveLabel = h('div', { class: 'title-medium' });
+        const movePanel = h('div', { class: 'move-panel hidden' }, moveLabel,
+          drawerChips(null, async (drawerId) => {
+            try {
+              await moveItem(item, drawerId, Math.min(picker.value, item.amount));
+              o.close();
+            } catch (e) { /* shown */ }
+          }, item.drawer_id));
+        let moving = false;
         const update = (v) => {
+          const amount = Math.min(v, item.amount);
           if (v >= item.amount) {
+            const whole = moving ? t('move.whole') : t('take.removes');
             status.textContent = v > item.amount
-              ? `${t('take.capped', { amount: fmtAmount(item.amount, unit) })} – ${t('take.removes')}`
-              : t('take.removes');
+              ? `${t('take.capped', { amount: fmtAmount(item.amount, unit) })} – ${whole}`
+              : whole;
           } else {
             status.textContent = t('take.remaining', { amount: fmtAmount(item.amount - v, unit) });
           }
+          moveLabel.textContent = t('move.where', { amount: fmtAmount(amount, unit) });
           takeBtn.disabled = v <= 0;
+          moveBtn.disabled = v <= 0;
+          movePanel.classList.toggle('disabled', v <= 0);
         };
+        moveBtn.addEventListener('click', () => {
+          moving = !moving;
+          movePanel.classList.toggle('hidden', !moving);
+          moveBtn.classList.toggle('selected', moving);
+          update(picker.value);
+          if (moving) requestAnimationFrame(() => movePanel.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+        });
         let picker = null;
         picker = createPicker({
           value: start,
@@ -774,10 +895,11 @@
           item.note ? h('p', { class: 'body-medium', style: 'white-space:pre-wrap' }, item.note) : null,
           item.created_by ? h('div', { class: 'body-medium muted' }, t('item.added_by', { name: item.created_by })) : null,
           h('hr', { class: 'divider' }),
-          h('div', { class: 'title-medium' }, t('sheet.take_title')),
+          h('div', { class: 'title-medium' }, t('field.amount')),
           picker.el,
           status,
-          h('div', { class: 'sheet-actions', style: 'justify-content:center;margin-top:0' }, takeBtn),
+          h('div', { class: 'sheet-actions', style: 'justify-content:center;margin-top:0' }, takeBtn, canMove ? moveBtn : null),
+          canMove ? movePanel : null,
           h('hr', { class: 'divider' }),
           h('div', { class: 'sheet-actions', style: 'justify-content:center;margin-top:0' },
             h('button', { class: 'btn tonal', onclick: () => copyLabel(item) }, icon('copy'), t('action.copy_label')),
@@ -815,7 +937,7 @@
 
   function drawerCard(drawer, items) {
     const count = items.length;
-    return h('section', { class: 'drawer' },
+    return h('section', { class: 'drawer', 'data-drawer': String(drawer.id) },
       h('div', { class: 'drawer-head' },
         h('span', { class: 'drawer-badge' }, drawer.name),
         h('span', { class: 'body-medium' }, count
@@ -823,11 +945,19 @@
           : t('list.empty_drawer'))),
       items.map((item) => {
         const unit = S.units.get(item.unit_id);
-        return h('button', { class: 'item', onclick: () => openItem(item.id) },
-          h('div', { class: 'item-text' },
-            h('div', { class: 'item-name title-medium' }, item.name),
-            h('div', { class: 'body-medium muted' }, `${fmtAmount(item.amount, unit)} · ${fmtDate(item.added)}`)),
-          h('span', { class: 'chev' }, icon('chevron')));
+        return h('div', { class: 'item' },
+          h('button', { class: 'item-main', onclick: () => openItem(item.id) },
+            h('div', { class: 'item-text' },
+              h('div', { class: 'item-name title-medium' }, item.name),
+              h('div', { class: 'body-medium muted' }, `${fmtAmount(item.amount, unit)} · ${fmtDate(item.added)}`))),
+          S.state.drawers.length > 1
+            ? h('div', {
+              class: 'drag-handle',
+              title: t('action.drag'),
+              'aria-label': t('action.drag'),
+              onpointerdown: (e) => startDrag(e, item),
+            }, icon('grip'))
+            : null);
       }));
   }
 

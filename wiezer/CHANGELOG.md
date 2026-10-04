@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0 – 2026-10-04
+
+- Move entries to another drawer: from the entry's details (all or just part of it), or by dragging the handle on the right of an entry onto another drawer.
+- If the target drawer already has the same food with the same unit and freezing date, the amounts are combined.
+- Moves can be undone for a short time with "Undo" in the confirmation message.
+- Wiezer now appears in the sidebar for all Home Assistant users, not only administrators.
+
+*Deutsch:* Einträge ganz oder teilweise in eine andere Schublade verschieben – in den
+Details oder per Ziehen am Griff; gleiche Einträge (Name, Einheit, Einfrierdatum) werden
+zusammengefasst; Verschieben lässt sich mit „Rückgängig“ widerrufen; Wiezer erscheint
+für alle Benutzer in der Seitenleiste.
+
 ## 0.1.0 – 2026-10-04
 
 - First version: see at a glance what's in which drawer, how much, and since when.

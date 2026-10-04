@@ -15,6 +15,11 @@ After starting the add-on, open **Wiezer** in the Home Assistant sidebar.
   **Type amount** to enter the whole number.
 - **Take out:** tap an entry, set the amount (it starts at the unit's step size) and tap
   **Take out**. **All** takes everything. An entry disappears when it reaches zero.
+- **Move:** in an entry's details, set the amount and tap **Move**, then pick the drawer.
+  Moving part of an entry splits it. Or drag the handle (⋮⋮) on the right of an entry onto
+  another drawer to move the whole entry. If the target drawer already has the same food
+  with the same unit and freezing date, the amounts are combined. **Undo** in the
+  confirmation reverses a move for a short time, as long as nobody changed it meanwhile.
 - **Label text:** after saving, or in an entry's details, tap **Copy label text**. The
   name goes on the first line, amount and date on the second.
 - **Settings** (top right): language and theme per person; drawers, drawer groups and
@@ -33,7 +38,7 @@ automatically; once you rename one, it's shown exactly as you typed it.
 - Copying uses the browser clipboard. If it isn't allowed (for example on a plain `http`
   connection), a dialog shows the text so you can copy it by pressing and holding.
 - The add-on only accepts connections through Home Assistant and has no extra
-  permissions.
+  permissions. All Home Assistant users see it in their sidebar.
 
 ---
 
@@ -50,6 +55,13 @@ Nach dem Start erscheint **Wiezer** in der Seitenleiste von Home Assistant.
 - **Entnehmen:** Eintrag antippen, Menge einstellen (startet bei der Schrittweite der
   Einheit), **Entnehmen**. **Alles** nimmt den ganzen Eintrag. Bei null verschwindet der
   Eintrag.
+- **Verschieben:** in den Details eines Eintrags die Menge einstellen, **Verschieben**
+  tippen und die Schublade wählen. Wird nur ein Teil verschoben, entsteht ein eigener
+  Eintrag. Oder den Griff (⋮⋮) rechts neben einem Eintrag auf eine andere Schublade ziehen,
+  um den ganzen Eintrag zu verschieben. Liegt dort schon dasselbe Lebensmittel mit gleicher
+  Einheit und gleichem Einfrierdatum, werden die Mengen zusammengefasst. **Rückgängig** in
+  der Bestätigung macht das Verschieben kurz danach wieder rückgängig, solange niemand den
+  Eintrag inzwischen geändert hat.
 - **Etikettentext:** nach dem Speichern oder in den Details eines Eintrags **Etikettentext
   kopieren** wählen. In der ersten Zeile steht der Name, in der zweiten Menge und Datum.
 - **Einstellungen** (oben rechts): Sprache und Design für jede Person; Schubladen,
@@ -69,4 +81,4 @@ automatisch übersetzt; sobald man eine umbenennt, erscheint sie genau wie einge
   bei einer einfachen `http`-Verbindung), zeigt ein Dialog den Text zum Kopieren durch
   Gedrückthalten.
 - Das Add-on nimmt nur Verbindungen über Home Assistant an und hat keine zusätzlichen
-  Berechtigungen.
+  Berechtigungen. Alle Home-Assistant-Benutzer sehen es in ihrer Seitenleiste.

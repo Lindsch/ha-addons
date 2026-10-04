@@ -234,21 +234,62 @@ svg.icon {
 
 .item {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  min-height: 64px;
-  padding: 8px 16px 8px 60px;
-  border: 0;
+  align-items: stretch;
   border-top: 1px solid var(--outline-variant);
+}
+.item-main {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  min-height: 64px;
+  padding: 8px 8px 8px 60px;
+  border: 0;
   background: transparent;
   text-align: left;
   cursor: pointer;
 }
-.item:hover { background: color-mix(in srgb, var(--on-surface) 6%, transparent); }
+.item-main:hover { background: color-mix(in srgb, var(--on-surface) 6%, transparent); }
 .item-text { flex: 1; min-width: 0; }
 .item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.item .chev { color: var(--on-surface-variant); }
+
+/* drag and drop */
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 56px;
+  color: var(--on-surface-variant);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.item.dragging { opacity: 0.35; }
+.drag-ghost {
+  position: fixed;
+  z-index: 30;
+  pointer-events: none;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface-container-highest);
+  box-shadow: var(--shadow);
+  opacity: 0.94;
+  transform: scale(0.94);
+}
+.drag-ghost .drag-handle { cursor: grabbing; }
+.drawer { transition: box-shadow 0.12s, background 0.12s; }
+.drawer.drop-target {
+  background: var(--secondary-container);
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
+
+.move-panel { margin: 16px 0 0; }
+.move-panel .chips { margin-top: 8px; }
+.move-panel.disabled { opacity: 0.38; pointer-events: none; }
+.btn.tonal.selected { box-shadow: inset 0 0 0 2px var(--primary); }
 
 .empty-state { padding: 48px 24px; text-align: center; }
 

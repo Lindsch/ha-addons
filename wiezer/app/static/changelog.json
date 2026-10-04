@@ -1,5 +1,21 @@
 [
   {
+    "version": "0.2.0",
+    "date": "2026-10-04",
+    "en": [
+      "Move entries to another drawer: from the entry's details (all or just part of it), or by dragging the handle on the right of an entry onto another drawer.",
+      "If the target drawer already has the same food with the same unit and freezing date, the amounts are combined.",
+      "Moves can be undone for a short time with \"Undo\" in the confirmation message.",
+      "Wiezer now appears in the sidebar for all Home Assistant users, not only administrators."
+    ],
+    "de": [
+      "Einträge in eine andere Schublade verschieben: in den Details eines Eintrags (ganz oder nur teilweise) oder durch Ziehen am Griff rechts neben einem Eintrag auf eine andere Schublade.",
+      "Liegt in der Ziel-Schublade schon dasselbe Lebensmittel mit gleicher Einheit und gleichem Einfrierdatum, werden die Mengen zusammengefasst.",
+      "Verschieben lässt sich kurz danach mit „Rückgängig“ in der Bestätigung widerrufen.",
+      "Wiezer erscheint jetzt für alle Home-Assistant-Benutzer in der Seitenleiste, nicht nur für Administratoren."
+    ]
+  },
+  {
     "version": "0.1.0",
     "date": "2026-10-04",
     "en": [

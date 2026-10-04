@@ -20,6 +20,9 @@
   "action.retry": "Try again",
   "action.increase": "Increase digit",
   "action.decrease": "Decrease digit",
+  "action.move": "Move",
+  "action.undo": "Undo",
+  "action.drag": "Drag to another drawer",
 
   "list.empty_drawer": "Empty",
   "list.no_results": "Nothing found",
@@ -49,7 +52,6 @@
 
   "sheet.add_title": "Freeze something",
   "sheet.edit_title": "Edit entry",
-  "sheet.take_title": "Take out",
 
   "item.location": "Drawer {drawer}",
   "item.location_group": "{group} · drawer {drawer}",
@@ -65,6 +67,9 @@
   "snack.deleted": "Deleted",
   "snack.copied": "Label text copied",
   "snack.item_gone": "This entry was removed in the meantime",
+  "snack.moved": "Moved to {location}",
+  "snack.moved_merged": "Added to the existing entry in {location}",
+  "snack.undone": "Undone",
 
   "copy.manual_title": "Copy label text",
   "copy.manual_hint": "Copying automatically didn't work. Press and hold the text to copy it.",
@@ -80,6 +85,7 @@
   "error.last_drawer": "At least one drawer is needed",
   "error.last_unit": "At least one unit is needed",
   "error.server": "Something went wrong",
+  "error.undo_expired": "Can't undo anymore – the entry was changed in the meantime",
 
   "settings.title": "Settings",
   "settings.general": "General",
@@ -113,6 +119,7 @@
   "option.system": "System",
   "option.light": "Light",
   "option.dark": "Dark",
+
   "lang.de": "Deutsch",
   "lang.en": "English",
 
@@ -125,5 +132,8 @@
   "unit.slice.one": "slice",
   "unit.slice.other": "slices",
   "unit.package.one": "package",
-  "unit.package.other": "packages"
+  "unit.package.other": "packages",
+
+  "move.where": "Move {amount} to:",
+  "move.whole": "The whole entry moves"
 }
