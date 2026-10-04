@@ -1,0 +1,6 @@
+#!/command/with-contenv bashio
+# shellcheck shell=bash
+# When the Wiezer server stops, stop the whole container so the
+# Supervisor sees the add-on as stopped (and its watchdog can restart it).
+bashio::log.info "Wiezer stopped (exit code ${1}, signal ${2})"
+exec /run/s6/basedir/bin/halt

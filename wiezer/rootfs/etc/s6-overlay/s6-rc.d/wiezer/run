@@ -1,0 +1,5 @@
+#!/command/with-contenv bashio
+# shellcheck shell=bash
+# Start the Wiezer web server (reached through Home Assistant ingress).
+bashio::log.info "Starting Wiezer"
+exec python3 /app/server.py
